@@ -1,36 +1,22 @@
-
+from fastapi import FastAPI
 import requests
 import json
 
-url = 'http://localhost:11434/api/generate'
+app = FastAPI()
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
-while True:
-    # Get user input
-    user_input = input("You: ")
-    
-    # Check if the user wants to exit
-    if user_input.lower() == "/bye":
-        print("Goodbye!")
-        break
+@app.post("/chat")
+async def chat(prompt: str):
+    data = {"model": "deepseek-r1:8b", "prompt": prompt}
+    response = requests.post(OLLAMA_URL, json=data, stream=True)
 
-    # Define request data
-    data = {
-        "model": "deepseek-r1:8b",
-        "prompt": user_input
-    }
-
-    # Send request to Ollama API
-    response = requests.post(url, json=data, stream=True)
-
-    # Process response
     if response.status_code == 200:
-        print("AI:", end=" ", flush=True)
+        generated_text = ""
         for line in response.iter_lines():
             if line:
                 decoded_line = line.decode("utf-8")
                 result = json.loads(decoded_line)
-                generated_text = result.get("response", "")
-                print(generated_text, end="", flush=True)
-        print()  # Newline after response
+                generated_text += result.get("response", "")
+        return {"response": generated_text}
     else:
-        print("Error:", response.status_code, response.text)
+        return {"error": response.status_code, "message": response.text}
