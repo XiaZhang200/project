@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState,useEffect,useRef} from 'react';
 import axios from 'axios';
 import './App.css';
 
@@ -8,11 +8,13 @@ function App() {
     { text: 'DALE TETE DAME UN INPUT', sender: 'bot' },
     { text: 'Respuesta del user', sender: 'user' },
   ]);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const messageText = event.target.message.value.trim();
 
+  
     if (messageText !== '') {
       // Clear input after sending
       event.target.message.value = '';
@@ -23,23 +25,38 @@ function App() {
         { text: messageText, sender: 'user' },
       ]);
 
+      setLoading(true);
+      let botMessage = { text: '', sender: 'bot' };
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
+
       try {
-        const response = await axios.post('http://localhost:8000/chat', {
-          prompt: messageText,
+        const response = await fetch('http://localhost:8000/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: messageText }),
         });
 
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { text: response.data.response, sender: 'bot' },
-        ]);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          botMessage.text += chunk;
+
+          setMessages((prevMessages) => [...prevMessages.slice(0, -1), { ...botMessage }]);
+        }
       } catch (error) {
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { text: 'Error: Could not reach the server.', sender: 'bot' },
-        ]);
+        botMessage.text = 'Error: Could not reach the server.';
+        setMessages((prevMessages) => [...prevMessages.slice(0, -1), botMessage]);
+      } finally {
+        setLoading(false);
       }
     }
   };
+
 
   return (
     <>
